@@ -1,0 +1,139 @@
+package com.example.guhan.sample_project1;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+public class TCP_Client {
+    private Map<String,String> details = null;
+    /*
+     * To initialize Map (input values)
+     */
+    public TCP_Client(Map<String, String> details) {
+        // TODO Auto-generated constructor stub
+        this.details = details;
+    }
+
+    //	Pattern of IPV4
+    static private final String IPV4_REGEX = "(([0-1]?[0-9]{1,2}\\.)|(2[0-4][0-9]\\.)|(25[0-5]\\.)){3}(([0-1]?[0-9]{1,2})|(2[0-4][0-9])|(25[0-5]))";
+    static private Pattern IPV4_PATTERN = Pattern.compile(IPV4_REGEX);
+    /*
+     * To validate IPV4 address
+     */
+    public static boolean isValidIPV4(String s)
+    {
+        return IPV4_PATTERN.matcher(s).matches();
+    }
+
+    /*
+     * To send or receive the file
+     */
+    public int start_client() {
+
+        int return_value = 0;
+        // TODO Auto-generated method stub
+        try {
+            String destip=details.get("destip");
+            String path_of_file=details.get("path");
+            String filename1=details.get("filename");
+            String command = details.get("request_command");
+            File f = new File(path_of_file+filename1);
+            if(destip.equals("")||!isValidIPV4(ippadr)) {								// If IP Address of server not given
+                return_value = 3;
+                return return_value;
+            }
+            if((!f.exists() || f.isDirectory()) && (command.equals("PUT"))) {			// If file is not found and it is a PUT command i.e we cannot send the file
+                return_value = 4;
+                return return_value;
+            }
+            if(!command.equals("GET") && !command.equals("PUT")) {						// If command is not given
+                return_value = 6;
+                return return_value;
+            }
+            if(!f.isDirectory() && !command.equals("SYNC")) {
+                return_value = 7;
+                return return_value;
+            }
+            Socket s = new Socket(destip, 20000);										// Opening connection to server
+            BufferedInputStream in = new BufferedInputStream(s.getInputStream());		// Opening Input stream for reading from socket
+            BufferedOutputStream bout = new BufferedOutputStream(s.getOutputStream());	// Opening Output stream for writing to socket
+            byte[] b = new byte[1000*1024];
+            int readno = in.read(b);													// Reading from socket
+            String server_input_1 = new String(b,0,readno);
+            if((server_input_1!=null)&&(server_input_1.equals("Command"))) {			// Check if got a request for command
+                bout.write(new String("Command:"+command).getBytes());					// sending Command to server
+                bout.flush();
+                readno = in.read(b);													// Receive request from server
+                String server_input_2 = new String(b,0,readno);
+
+                if((server_input_2!=null)&&(server_input_2.equals("Send File name"))) {
+                    bout.write(new String("File name:"+filename1).getBytes());			// Sending file name to server
+                    bout.flush();
+                    readno = in.read(b);												// Receive request from server
+                    String server_input_3 = new String(b,0,readno);
+                    if((server_input_3!=null)&&(server_input_3.equals("Start"))) {		// If received start from server the either send or receive data from server
+
+                        if(command.equals("PUT")) {										// If the command is PUT then send the data to server
+                            BufferedInputStream fin = new BufferedInputStream(new FileInputStream(f));	// Open the file in read mode
+                            while((readno=fin.read(b))!=-1) {							// Read from file and write to socket
+                                bout.write(b,0,readno);
+                            }
+                            return_value = 1;
+                            bout.flush();
+                            fin.close();												// Closing the file
+                        } else if(command.equals("GET")) {														// If command is GET then receive data from server
+
+                            BufferedOutputStream fout = new BufferedOutputStream(new FileOutputStream(f));	// Open the file in write mode
+                            while((readno=in.read(b))!=-1) {						// Read from socket and write it to file
+                                fout.write(b,0,readno);
+                            }
+                            return_value = 2;
+                            fout.flush();
+                            fout.close();											// Closing the file
+
+                        }else {
+
+
+                        }
+                    } else if((server_input_3!=null)&&(server_input_3.equals("No such file exists"))) {	// If requesting File not found on server
+                        return_value = 7;
+                    }
+                } else {
+                    return_value = 7;
+                }
+            }
+            bout.flush();
+            in.close();																	// Closing Input stream of socket
+
+            bout.close();																// Closing Output stream of socket
+            s.close();																	// Closing the socket
+
+        } catch (UnknownHostException e) {
+            // TODO Auto-generated catch block
+            return_value = 3;
+            e.printStackTrace();
+        } catch (FileNotFoundException e) {
+            return_value = 4;
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            return_value = 5;
+            e.printStackTrace();
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            return_value = 5;
+            e.printStackTrace();
+        }
+        return return_value;
+    }
+
+}
